@@ -1,0 +1,5 @@
+aiohttp==3.13.3
+aiortc==1.14.0
+av==16.1.0
+opencv-python==4.13.0.92
+numpy==2.4.3

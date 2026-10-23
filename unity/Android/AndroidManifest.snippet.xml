@@ -1,0 +1,6 @@
+<!-- Add these attributes on the <application> element so a Quest
+     build can reach a LAN WebRTC server over HTTP. -->
+<application
+    android:usesCleartextTraffic="true"
+    android:networkSecurityConfig="@xml/network_security_config">
+</application>

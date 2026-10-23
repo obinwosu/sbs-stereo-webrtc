@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SBS WebRTC Test</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #111;
+      color: #eee;
+    }
+    video {
+      width: 960px;
+      max-width: 100%;
+      background: black;
+      border: 1px solid #444;
+    }
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    pre {
+      background: #1a1a1a;
+      padding: 12px;
+      overflow: auto;
+      max-height: 250px;
+    }
+  </style>
+</head>
+<body>
+  <h1>SBS WebRTC Test</h1>
+  <p>This page receives the same single side-by-side track the Unity client uses. Left eye is the left half, right eye is the right half.</p>
+  <button id="startBtn">Start WebRTC</button>
+  <div>
+    <video id="remoteVideo" autoplay playsinline muted></video>
+  </div>
+  <h3>Log</h3>
+  <pre id="log"></pre>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const videoEl = document.getElementById("remoteVideo");
+    const startBtn = document.getElementById("startBtn");
+
+    function log(msg) {
+      console.log(msg);
+      logEl.textContent += msg + "\n";
+    }
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      log("Creating peer connection");
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
+      });
+
+      pc.ontrack = (event) => {
+        log("Received remote track");
+        if (event.streams && event.streams[0]) {
+          videoEl.srcObject = event.streams[0];
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        log("Connection state: " + pc.connectionState);
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        log("ICE state: " + pc.iceConnectionState);
+      };
+
+      pc.addTransceiver("video", { direction: "recvonly" });
+
+      log("Creating offer");
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      log("Sending offer to /offer");
+      const response = await fetch("/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sdp: pc.localDescription.sdp,
+          type: pc.localDescription.type
+        })
+      });
+
+      const answer = await response.json();
+      log("Received answer");
+
+      await pc.setRemoteDescription(answer);
+      log("Remote description applied");
+    };
+  </script>
+</body>
+</html>
