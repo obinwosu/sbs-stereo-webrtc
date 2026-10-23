@@ -1,55 +1,61 @@
 # Hardware setup
 
-This path was used with a da Vinci surgeon console and a Magewell USB Fusion.
+This is the capture path that worked for a da Vinci surgeon console into a Quest Unity app.
+
+## Signal path
+
+```
+da Vinci console left DVI  --DVI-HDMI-->  Fusion HDMI 1
+da Vinci console right DVI --DVI-HDMI-->  Fusion HDMI 2
+USB Fusion SBS layout      --USB-C UVC--> Mac webcam
+Mac WebRTC server          --LAN------->  Unity / Quest
+```
+
+The Fusion, not the Mac, does the stereo composite. The Mac sees one 1080p side-by-side webcam.
 
 ## What you need
 
-- da Vinci console stereo outputs (two DVI ports: left eye and right eye)
+- da Vinci surgeon console with two DVI video outputs (left eye, right eye)
 - Two DVI-to-HDMI cables
 - [Magewell USB Fusion](https://www.magewell.com/capture/usb-fusion)
-- USB-C cable from Fusion to the Mac (use the supplied USB 3.0 cable)
-- Fusion power supply
-- Mac on the same LAN as the Quest / Unity client
+- USB-C cable from Fusion USB OUT to the Mac (use the supplied USB 3.0 cable)
+- Fusion power adapter (the unit must be powered; bus power is not enough)
+- Mac on the same LAN as the headset
+- Quest or other OpenXR headset for the Unity client
 
-## Cable map
-
-```
-da Vinci left eye  --DVI-HDMI--> Fusion HDMI 1
-da Vinci right eye --DVI-HDMI--> Fusion HDMI 2
-Fusion USB-C OUT   --USB 3.0---> Mac
-Fusion HDMI OUT                  optional monitor preview
-```
-
-Keep left on HDMI 1 and right on HDMI 2. If they are reversed, swap the cables or set `_SwapEyes` on the Unity `StereoSBS` material.
+USB Fusion inputs are HDMI 1.4, up to 1080p60. That matches typical console DVI output after a DVI-HDMI adapter.
 
 ## Fusion layout
 
-1. Power the Fusion and wait until it boots.
-2. Confirm HDMI 1 and HDMI 2 LEDs are lit.
-3. Short-press the **SBS** button until the layout is HDMI 1 | HDMI 2.
-4. Long-press **SBS** until the split is 50/50 (`dividerLine` at x = 0.5).
-5. Connect USB-C to the Mac. The Fusion appears as a driver-free UVC webcam.
+1. Power the Fusion.
+2. Connect left-eye DVI-HDMI to **HDMI 1**.
+3. Connect right-eye DVI-HDMI to **HDMI 2**.
+4. Press the **SBS** button until HDMI 1 and HDMI 2 are the two panes.
+5. Long-press SBS if you need a 50/50 split. A divider that is not centered will warp stereo.
+6. Connect **USB OUT** (Type-C) to the Mac. The Fusion appears as a driver-free UVC webcam.
+7. Optional: use the Fusion HDMI OUT monitor to confirm both eyes before you start the server.
 
-The Fusion composites both eyes into one 1920x1080 program frame. That is what OpenCV and WebRTC capture. Do not try to open HDMI 1 and HDMI 2 as two cameras on the Mac.
+Front-panel buttons, from the USB Fusion quick start guide:
 
-USB Fusion HDMI inputs are HDMI 1.4, up to about 1080p60. Match the console output to that.
+| Button | Short press | Long press |
+| --- | --- | --- |
+| 1 | HDMI 1 only | |
+| 2 | HDMI 2 only | Screencast |
+| 3 | USB webcam | |
+| 4 | Picture-in-picture | Move PIP window |
+| 5 | Side-by-side | Change SBS ratio |
 
-## Mac capture
+Do not leave the unit in PIP mode. The Unity shader expects a 50/50 SBS frame.
 
-On the Mac the Fusion shows up as a normal camera. Find its OpenCV index:
+## Why one SBS track
 
-```bash
-python server/webrtc_sbs_server.py --list-devices
-```
+Sending two independent WebRTC videos makes left/right sync harder. USB Fusion already locks both HDMI inputs to one UVC clock. Unity then samples the left half for the left eye and the right half for the right eye.
 
-Then start the server with that `--device` and a size that matches the Fusion USB output, usually `1920x1080`.
+## Checks before streaming
 
-Use a USB 3.0 port. If the Fusion reports `high-speed` instead of `super-speed-5g`, the Mac is on USB 2.0 and the stream will struggle.
+- Both HDMI LEDs are on.
+- Fusion Web UI or `fusion/fusion_sbs.py status` shows HDMI 1 and HDMI 2 as **locked**.
+- USB link is USB 3 (`super-speed-5g`). USB 2 will drop frames at 1080p.
+- Preview on the Mac shows left | right, not a single eye or PIP.
 
-## Network
-
-The WebRTC server binds `0.0.0.0:8080` by default. The Quest app POSTs an SDP offer to `http://<mac-lan-ip>:8080/offer`. Both devices need to reach each other on that LAN. Phone-hotspot or isolated OR networks often block this.
-
-## Optional Fusion control
-
-The Fusion also has a Web UI / HTTP API (default AP `192.168.66.1`). Use `fusion/fusion_sbs.py` to confirm both HDMI inputs are locked, keep the unit awake, and switch to SBS without touching the front panel. See [fusion-api.md](fusion-api.md).
+If one half is black, the matching DVI-HDMI cable or console output is dark. If both halves show the same eye, the Fusion is not in HDMI1+HDMI2 SBS.

@@ -1,8 +1,11 @@
-"""Capture a Magewell USB Fusion SBS camera and serve it over WebRTC.
+#!/usr/bin/env python3
+"""Capture a Magewell USB Fusion SBS webcam and serve it over WebRTC.
 
 The Fusion already composites left/right into one side-by-side frame.
-This server does not split eyes. It streams that single SBS track to a
-browser tester or a Unity XR client that samples left/right halves.
+This server does not split eyes. It opens that UVC device with OpenCV
+and offers a single video track to a browser or Unity client.
+
+LIVE CAMERA SERVER v5 — same signaling path used by the Quest stereo app.
 """
 
 import argparse
@@ -16,33 +19,9 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
 
+from list_cameras import list_devices
+
 pcs = set()
-HERE = Path(__file__).resolve().parent
-
-
-def capture_backend():
-    if platform.system() == "Darwin":
-        return cv2.CAP_AVFOUNDATION
-    return cv2.CAP_ANY
-
-
-def list_capture_devices(max_index=10):
-    backend = capture_backend()
-    found = []
-    for index in range(max_index):
-        cap = cv2.VideoCapture(index, backend)
-        if not cap.isOpened():
-            cap.release()
-            continue
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        found.append((index, width, height, fps))
-        print(f"Device {index}: {width}x{height} @ {fps:.2f} fps")
-        cap.release()
-    if not found:
-        print("No capture devices found.")
-    return found
 
 
 def describe_video_codecs(sdp: str):
@@ -160,7 +139,10 @@ class LiveCameraTrack(VideoStreamTrack):
         self.preview = preview
         self.overlay = overlay
 
-        self.cap = cv2.VideoCapture(device_index, capture_backend())
+        if platform.system() == "Darwin":
+            self.cap = cv2.VideoCapture(device_index, cv2.CAP_AVFOUNDATION)
+        else:
+            self.cap = cv2.VideoCapture(device_index)
 
         if not self.cap.isOpened():
             raise RuntimeError(f"Could not open capture device index {device_index}")
@@ -220,7 +202,7 @@ class LiveCameraTrack(VideoStreamTrack):
 
 
 async def index(request):
-    html = (HERE / "index.html").read_text()
+    html = Path(__file__).with_name("index.html").read_text()
     return web.Response(text=html, content_type="text/html")
 
 
@@ -324,10 +306,8 @@ async def on_shutdown(app):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Stream a Magewell USB Fusion SBS camera over WebRTC."
-    )
-    parser.add_argument("--device", type=int, default=0, help="Camera device index")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--device", type=int, default=0, help="Camera device index (USB Fusion UVC)")
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
     parser.add_argument("--fps", type=int, default=30)
@@ -349,12 +329,20 @@ def main():
     parser.add_argument(
         "--list-devices",
         action="store_true",
-        help="List OpenCV capture devices and exit",
+        help="Print OpenCV capture indexes and exit",
     )
     args = parser.parse_args()
 
     if args.list_devices:
-        list_capture_devices()
+        devices = list_devices()
+        if not devices:
+            print("No capture devices found.")
+            return
+        for device in devices:
+            print(
+                f"  --device {device['index']}: "
+                f"{device['width']}x{device['height']} @ {device['fps']:.1f} fps"
+            )
         return
 
     app = web.Application()

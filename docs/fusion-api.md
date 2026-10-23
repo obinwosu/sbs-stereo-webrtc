@@ -1,74 +1,60 @@
-# Magewell USB Fusion API notes
+# USB Fusion API notes
 
-These are the endpoints this repo uses from the official USB Fusion API
-(firmware 2.4.68+, V2.0 paths for 2.6.0+). The full vendor PDF is not
-redistributed here.
+The helper in `fusion/fusion_sbs.py` talks to the Magewell USB Fusion HTTP API so you can confirm HDMI lock and switch to SBS without walking to the box.
 
-## How to talk to the device
+Source: *USB Fusion API* (firmware 2.4.68 and above). V2.0 paths below are for firmware 2.6.0+.
 
-- HTTP + JSON
-- Default AP address: `http://192.168.66.1`
-- Login: `POST /api/user/login`
-- Password is sent as SHA-256 hex, not plaintext
-- Session cookie looks like `sid-<serial>=<sid>`
-- Most control calls: `POST /mwapi/V2.0/<group>/<action>`
-- Older firmware: drop `V2.0` and use `/mwapi/<action>`
+## Reachability
 
-```bash
-export FUSION_PASSWORD='your-password'
-python fusion/fusion_sbs.py ping
-python fusion/fusion_sbs.py status
-python fusion/fusion_sbs.py prepare
+The Fusion Web UI and API listen on the device IPv4 address.
+
+- Factory AP address: `http://192.168.66.1`
+- Ethernet / USB NET: use the address shown in the Web UI
+
+Most calls need a login cookie. Passwords are SHA-256 hex, not plaintext.
+
+```http
+POST /api/user/login
+{"username":"Admin","password":"<sha256 hex>"}
 ```
 
-`prepare` logs in, blocks sleep, checks HDMI 1/2, then switches to a saved
-SBS scene (`template == 1`) or presses front-panel button 5.
+The session cookie looks like `sid-<serial>=<sid>`.
 
-## Endpoints used here
+## Calls used here
 
-| Action | Path |
-| --- | --- |
-| Ping | `/api/ping` |
-| Login | `/api/user/login` |
-| Device + I/O summary | `/mwapi/V2.0/dashboard/get-summary-info` |
-| Block sleep | `/mwapi/V2.0/general/block-goto-sleep` |
-| HDMI signal | `/mwapi/V2.0/input/get-signal-info` (`source-id` 0 or 1) |
-| USB-C / UVC config | `/mwapi/V2.0/output/get-usb-output-config` |
-| Scene list | `/mwapi/V2.0/scene/get-scenes-list` |
-| Switch scene | `/mwapi/V2.0/scene/switch-scene` |
-| Press button | `/mwapi/V2.0/button/action/n` |
+| Action | Path | Body |
+| --- | --- | --- |
+| Ping | `POST /api/ping` | none |
+| Login | `POST /api/user/login` | `username`, SHA-256 `password` |
+| Stay awake | `POST /mwapi/V2.0/general/block-goto-sleep` | `{"block":1}` |
+| Dashboard | `POST /mwapi/V2.0/dashboard/get-summary-info` | none |
+| USB-C output | `POST /mwapi/V2.0/output/get-usb-output-config` | none |
+| Scene list | `POST /mwapi/V2.0/scene/get-scenes-list` | none |
+| Switch scene | `POST /mwapi/V2.0/scene/switch-scene` | `{"sceneId": N}` |
+| Press SBS | `GET /mwapi/V2.0/button/action/5` | none |
 
-## Values that matter for stereo
-
-HDMI / webcam signal `status`:
+HDMI signal `status` values:
 
 - `0` no signal
 - `1` unsupported
 - `2` locking
 - `3` locked / capturable
 
-Scene `template`:
+Scene `template` values:
 
 - `0` picture-in-picture
 - `1` side-by-side
 - `2` single source
 
-Front-panel buttons, left to right:
+`prepare` prefers a saved scene with `template == 1`. If none exists, it presses button 5 (SBS).
 
-1. HDMI 1
-2. HDMI 2
-3. WEB CAMERA 3
-4. PIP
-5. SBS
+## Helper
 
-`USBOutData.speed` should be `super-speed-5g` when the Mac is on USB 3.
-`uvc-running` becomes true once the WebRTC server opens the camera.
+```bash
+export FUSION_PASSWORD='your-password'
+python fusion/fusion_sbs.py prepare --host 192.168.66.1
+```
 
-A 50/50 SBS split is a vertical `dividerLine` at `x1 = x2 = 500000`
-(relative 0–1 scaled by 1,000,000).
+Other commands: `ping`, `status`, `sbs`.
 
-## Sources
-
-- [USB Fusion product page](https://www.magewell.com/capture/usb-fusion)
-- USB Fusion API document (`usb-fusion-api-en_US.pdf`)
-- USB Fusion user manual
+Do not commit Fusion passwords. Use `FUSION_PASSWORD` or `--password`.

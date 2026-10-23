@@ -18,7 +18,7 @@ public class LiveStreamManager : MonoBehaviour
     public Renderer targetRenderer;
 
     [Header("Signaling")]
-    public string offerUrl = "http://10.246.130.11:8080/offer"; // Mac LAN IP running server/webrtc_sbs_server.py
+    public string offerUrl = "http://YOUR_MAC_LAN_IP:8080/offer";
 
     private RTCPeerConnection pc;
     private VideoStreamTrack remoteVideoTrack;

@@ -1,5 +1,4 @@
-<!-- Add these attributes on the <application> element so a Quest
-     build can reach a LAN WebRTC server over HTTP. -->
+<!-- Required so a Quest/Android build can POST SDP offers to the LAN WebRTC server over HTTP. -->
 <application
     android:usesCleartextTraffic="true"
     android:networkSecurityConfig="@xml/network_security_config">

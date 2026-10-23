@@ -1,5 +1,9 @@
-aiohttp==3.13.3
 aiortc==1.14.0
+aiohttp==3.13.3
 av==16.1.0
 opencv-python==4.13.0.92
 numpy==2.4.3
+pyOpenSSL==26.0.0
+cryptography==46.0.5
+aioice==0.10.2
+pylibsrtp==1.0.0

@@ -1,45 +1,55 @@
-# Unity SBS stereo client
+# Unity stereo client
 
-Drop-in scripts from the Quest app `com.ObiNwosu.queststereoviewer`.
-They receive one WebRTC video track and split it per eye.
+Drop-in scripts from the Quest app (`com.ObiNwosu.queststereoviewer`). They receive one SBS WebRTC track and split it per eye.
 
 Tested with:
 
 - Unity 6000.3
 - `com.unity.webrtc` 3.0.0-pre.8
-- Meta XR SDK / OpenXR on Quest 3
+- Meta XR SDK / OpenXR on Quest
 
-## Scene wiring
+## Install
 
-1. Install `com.unity.webrtc`.
-2. Copy `Runtime/` into `Assets`.
-3. Create a world-space quad in front of the XR camera.
-4. Assign `StereoSBS.shader` to that quad's material.
-5. Add `LiveStreamManager` to an empty object.
-6. Set `targetRenderer` to the quad.
-7. Set `offerUrl` to `http://<mac-lan-ip>:8080/offer`.
+1. Copy `Runtime/*.cs` and `Runtime/*.shader` into `Assets/`.
+2. Package Manager: add **WebRTC** (`com.unity.webrtc`).
+3. Create a world-space quad (the stereo screen).
+4. Make a material that uses `Custom/StereoSBS` and assign it to the quad.
+5. Add `LiveStreamManager` to a GameObject.
+6. Set **Target Renderer** to the quad.
+7. Set **Offer Url** to `http://<mac-lan-ip>:8080/offer`.
 
-`LiveStreamManager` creates a recv-only video transceiver, POSTs the SDP
-offer, and writes incoming frames onto `_MainTex`.
+## Eye split
 
-`StereoSBS.shader` uses `unity_StereoEyeIndex`:
+`StereoSBS.shader` reads `unity_StereoEyeIndex`:
 
-- left eye samples the left half
-- right eye samples the right half
-- `_SwapEyes` flips that if the Fusion inputs are reversed
+- left eye samples `uv.x * 0.5`
+- right eye samples `0.5 + uv.x * 0.5`
 
-Optional:
-
-- `VideoCropController` if the capture texture is letterboxed
-- `ScreenResizeHandle` to grab-scale the in-world screen on Quest
-- `MonoShader` for 2D preview without stereo split
+If the console cables are swapped, set `_SwapEyes` to `1` on the material.
 
 ## Android / Quest HTTP
 
-Quest builds block cleartext HTTP unless you allow it. Copy
-`Android/network_security_config.xml` to `Assets/Plugins/Android/` and add
-the attributes in `Android/AndroidManifest.snippet.xml` to the
-`<application>` element.
+Quest blocks cleartext HTTP unless you allow it. Copy `Android/network_security_config.xml` to `Assets/Plugins/Android/` and add these attributes on `<application>`:
 
-The Quest and the Mac must be on the same LAN. Update `offerUrl` before
-each build if the Mac DHCP address changed.
+```xml
+android:usesCleartextTraffic="true"
+android:networkSecurityConfig="@xml/network_security_config"
+```
+
+See `Android/AndroidManifest.snippet.xml`.
+
+The Quest and the Mac must be on the same LAN. The headset must be able to open `http://<mac-lan-ip>:8080/health`.
+
+## Optional scripts
+
+- `VideoCropController` — if the decoded texture is larger than the active 1920x1080 picture, set crop uniforms. The stock `StereoSBS` shader does not consume those uniforms unless you extend it.
+- `ScreenResizeHandle` — grab the quad corner with the right Trigger. Requires Meta `OVRInput`.
+- `MonoShader` — show the full SBS frame in one eye for debugging.
+
+## Scene checklist
+
+- [ ] Quad uses `Custom/StereoSBS`
+- [ ] `LiveStreamManager.offerUrl` is the Mac LAN address, not `localhost`
+- [ ] Cleartext HTTP is allowed in the Android manifest
+- [ ] Headset Wi-Fi can reach port 8080
+- [ ] Server is running before the scene starts (the client offers once on `Start`)

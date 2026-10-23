@@ -12,9 +12,5 @@ __pycache__/
 Library/
 Logs/
 Temp/
-obj/
-Build/
-Builds/
-user.secrets
-sid.txt
-*.cookie
+Obj/
+UserSettings/
